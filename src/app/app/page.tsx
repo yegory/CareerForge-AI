@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
 
 const navItems = [
   { label: "Dashboard", icon: BriefcaseBusiness, href: "/app" },
-  { label: "Generator", icon: FileText, href: "/app" },
+  { label: "Templates", icon: FileText, href: "/templates" },
   { label: "Key Vault", icon: KeyRound, href: "/settings" },
   { label: "ATS Guard", icon: ShieldCheck, href: "/app" },
 ];
