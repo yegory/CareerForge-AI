@@ -7,6 +7,7 @@ import {
   analyzeTemplateBuffer,
   placeholdersToConstraints,
 } from "@/lib/templates/analyzer";
+import { assertRateLimit, RateLimitError } from "@/lib/security/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 function safeFilename(name: string) {
@@ -25,6 +26,20 @@ export async function importTemplateFile(formData: FormData) {
 
   if (!user) {
     redirect("/login?next=/templates");
+  }
+
+  try {
+    await assertRateLimit({
+      key: `rate:template-import:${user.id}`,
+      limit: 10,
+      windowSeconds: 60,
+    });
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      templatesRedirect("error", error.message);
+    }
+
+    throw error;
   }
 
   const file = formData.get("file");

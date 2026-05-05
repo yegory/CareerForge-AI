@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getMissingServerEnvNames } from "@/lib/env.server";
 import { hasSupabasePublicEnv } from "@/lib/env";
 import { listKeyVaultEntries } from "@/lib/key-vault/data";
+import { listProviderDefinitions } from "@/lib/llm/registry";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
   const missingServerEnv = getMissingServerEnvNames();
   const entries = await listKeyVaultEntries(supabase, user.id).catch(() => []);
+  const providers = listProviderDefinitions();
 
   return (
     <main className="min-h-screen bg-[#f7f4ed] text-[#152023]">
@@ -51,7 +53,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             </Link>
             <h1 className="text-3xl font-semibold">Key vault</h1>
             <p className="mt-2 text-sm text-[#627174]">
-              Store Gemini and DeepSeek API keys for generation runs.
+              Store bring-your-own provider keys for generation runs.
             </p>
           </div>
           <div className="inline-flex items-center gap-2 rounded-lg border border-[#d9d4c8] bg-white px-3 py-2 text-sm">
@@ -94,8 +96,11 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                 defaultValue="gemini"
                 className="h-10 w-full rounded-lg border border-[#cfc7ba] bg-white px-2.5 text-sm outline-none focus-visible:border-[#153f4a] focus-visible:ring-3 focus-visible:ring-[#153f4a]/20"
               >
-                <option value="gemini">Gemini</option>
-                <option value="deepseek">DeepSeek</option>
+                {providers.map((provider) => (
+                  <option key={provider.providerId} value={provider.providerId}>
+                    {provider.displayName}
+                  </option>
+                ))}
               </select>
 
               <label className="block text-sm font-medium" htmlFor="label">

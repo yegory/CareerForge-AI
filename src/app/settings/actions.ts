@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { providerNameSchema, validateProviderKey } from "@/lib/llm/providers";
+import { assertRateLimit, RateLimitError } from "@/lib/security/rate-limit";
 import { encryptSecret, fingerprintSecret } from "@/lib/security/key-vault";
 import { createClient } from "@/lib/supabase/server";
 
@@ -25,6 +26,20 @@ export async function saveProviderKey(formData: FormData) {
 
   if (!user) {
     redirect("/login?next=/settings");
+  }
+
+  try {
+    await assertRateLimit({
+      key: `rate:key-save:${user.id}`,
+      limit: 12,
+      windowSeconds: 60,
+    });
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      settingsRedirect("error", error.message);
+    }
+
+    throw error;
   }
 
   const parsed = saveProviderKeyFormSchema.safeParse({

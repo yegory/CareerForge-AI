@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ProviderName } from "@/lib/llm/registry";
 
 export interface KeyVaultEntry {
   id: string;
-  provider: "gemini" | "deepseek";
+  provider: ProviderName;
   label: string;
   key_fingerprint: string;
   created_at: string;
@@ -17,7 +18,6 @@ export async function listKeyVaultEntries(
     .from("llm_key_vault_entries")
     .select("id,provider,label,key_fingerprint,created_at,updated_at")
     .eq("user_id", userId)
-    .in("provider", ["gemini", "deepseek"])
     .order("updated_at", { ascending: false });
 
   if (error) {

@@ -1,10 +1,15 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 import { z } from "zod";
 import type { LanguageModelClient } from "@/lib/ats/engine";
+import {
+  providerNameSchema,
+  requireProviderDefinition,
+  type ProviderName,
+} from "@/lib/llm/registry";
 
-export const providerNameSchema = z.enum(["gemini", "deepseek"]);
-export type ProviderName = z.infer<typeof providerNameSchema>;
+export { providerNameSchema, type ProviderName };
 
 const validationSchema = z.object({
   ok: z.boolean(),
@@ -15,7 +20,51 @@ function parseJsonText<T>(text: string, schema: z.ZodType<T>) {
   return schema.parse(parsed);
 }
 
-export function createGeminiClient(apiKey: string, model = "gemini-2.5-flash"): LanguageModelClient {
+function schemaName(step: "jd-analysis" | "content-generation") {
+  return step === "jd-analysis" ? "jd_analysis_result" : "content_generation_result";
+}
+
+export function createOpenAiCompatibleClient(input: {
+  apiKey: string;
+  model: string;
+  baseURL?: string;
+}): LanguageModelClient {
+  const openai = new OpenAI({
+    apiKey: input.apiKey,
+    baseURL: input.baseURL,
+  });
+
+  return {
+    async generateObject(request) {
+      const completion = await openai.chat.completions.create({
+        model: input.model,
+        messages: [
+          { role: "system", content: request.system },
+          {
+            role: "user",
+            content: `${request.prompt}\n\nReturn JSON only.`,
+          },
+        ],
+        response_format: { type: "json_object" },
+      });
+      const text = completion.choices[0]?.message.content ?? "{}";
+
+      return parseJsonText(text, request.schema);
+    },
+  };
+}
+
+export function createOpenAIClient(
+  apiKey: string,
+  model: string = requireProviderDefinition("openai").defaultModel,
+): LanguageModelClient {
+  return createOpenAiCompatibleClient({ apiKey, model });
+}
+
+export function createGeminiClient(
+  apiKey: string,
+  model: string = requireProviderDefinition("gemini").defaultModel,
+): LanguageModelClient {
   const ai = new GoogleGenAI({ apiKey });
 
   return {
@@ -36,49 +85,88 @@ export function createGeminiClient(apiKey: string, model = "gemini-2.5-flash"): 
   };
 }
 
-export function createDeepSeekClient(
+export function createAnthropicClient(
   apiKey: string,
-  model = "deepseek-v4-flash",
+  model: string = requireProviderDefinition("anthropic").defaultModel,
 ): LanguageModelClient {
-  const openai = new OpenAI({
-    apiKey,
-    baseURL: "https://api.deepseek.com",
-  });
+  const anthropic = new Anthropic({ apiKey });
 
   return {
     async generateObject(request) {
-      const completion = await openai.chat.completions.create({
+      const response = await anthropic.messages.create({
         model,
-        messages: [
-          { role: "system", content: request.system },
+        max_tokens: 4096,
+        system: request.system,
+        messages: [{ role: "user", content: request.prompt }],
+        tools: [
           {
-            role: "user",
-            content: `${request.prompt}\n\nReturn JSON only.`,
+            name: schemaName(request.step),
+            description: "Return the requested resume-generation JSON payload.",
+            input_schema: {
+              type: "object",
+              additionalProperties: true,
+            },
           },
         ],
-        response_format: { type: "json_object" },
+        tool_choice: {
+          type: "tool",
+          name: schemaName(request.step),
+        },
       });
-      const text = completion.choices[0]?.message.content ?? "{}";
+      const toolUse = response.content.find((block) => block.type === "tool_use");
 
-      return parseJsonText(text, request.schema);
+      if (!toolUse || toolUse.type !== "tool_use") {
+        throw new Error("Anthropic response did not include structured tool output.");
+      }
+
+      return request.schema.parse(toolUse.input);
     },
   };
+}
+
+export function createDeepSeekClient(
+  apiKey: string,
+  model: string = requireProviderDefinition("deepseek").defaultModel,
+): LanguageModelClient {
+  return createOpenAiCompatibleClient({
+    apiKey,
+    model,
+    baseURL: requireProviderDefinition("deepseek").baseUrl,
+  });
 }
 
 export function createProviderClient(input: {
   provider: ProviderName;
   apiKey: string;
+  model?: string;
+  baseURL?: string;
 }) {
-  if (input.provider === "gemini") {
-    return createGeminiClient(input.apiKey);
+  const definition = requireProviderDefinition(input.provider);
+  const model = input.model ?? definition.defaultModel;
+
+  if (definition.adapterKind === "gemini") {
+    return createGeminiClient(input.apiKey, model);
   }
 
-  return createDeepSeekClient(input.apiKey);
+  if (definition.adapterKind === "anthropic") {
+    return createAnthropicClient(input.apiKey, model);
+  }
+
+  if (definition.adapterKind === "openai") {
+    return createOpenAIClient(input.apiKey, model);
+  }
+
+  return createOpenAiCompatibleClient({
+    apiKey: input.apiKey,
+    model,
+    baseURL: input.baseURL ?? definition.baseUrl,
+  });
 }
 
 export async function validateProviderKey(input: {
   provider: ProviderName;
   apiKey: string;
+  model?: string;
 }) {
   const client = createProviderClient(input);
   const result = await client.generateObject({

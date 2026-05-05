@@ -3,12 +3,21 @@
 ## Stack
 
 - App shell: Next.js App Router, TypeScript, Tailwind CSS v4, shadcn/ui, Framer Motion, Recharts.
-- Desktop: Tauri v2 with the same Next frontend exported statically for desktop builds.
+- Desktop: Tauri v2 hosted-web shell loading the production web app. Static export is not used because authenticated Next routes, middleware/proxy, cookies, route handlers, and Server Actions require a server.
 - PWA: Next metadata manifest, installable web shell, later service worker for offline drafts.
-- Backend: Supabase Auth, Postgres, Storage, Row Level Security, Edge Functions for provider calls and encrypted key handling.
-- AI providers: OpenAI, Anthropic Claude, Google Gemini, and DeepSeek through a provider adapter interface.
+- Backend: Supabase Auth, Postgres, Storage, Row Level Security, Redis-backed BullMQ workers, and encrypted key handling.
+- AI providers: OpenAI, Anthropic Claude, Google Gemini, DeepSeek, and OpenAI-compatible providers through a provider registry.
 - Documents: ATS-friendly DOCX placeholder rendering with flat paragraphs/lists only; no nested tables, text boxes, columns, or absolute-positioned shapes.
-- Tests: Vitest for ATS scoring, spatial constraints, and DOCX rendering.
+- Tests: Vitest for ATS scoring, spatial constraints, provider registry/adapters, generation job request validation, and DOCX rendering.
+
+## Production Runtime
+
+- `web`: Next.js App Router server, mobile-first UI, auth, public APIs, and metrics.
+- `worker:generation`: BullMQ worker for JD analysis, content generation, ATS scoring, generation run persistence, and DOCX rendering.
+- `worker:documents`: reserved heavy export queue for PDF conversion and post-processing.
+- `worker:scheduler`: repeatable maintenance queue for stalled jobs and scheduled reminders.
+- Redis stores queue state, retries, delayed jobs, and provider/user/key rate-limit buckets.
+- Prometheus scrapes `/api/metrics`; `/admin/queues` gives an authenticated queue dashboard.
 
 ## Git Workflow
 
@@ -36,7 +45,7 @@ Recommended branch cadence:
 - `codex/generator-workspace`: split-pane JD/profile/generation flow.
 - `codex/tracker-dashboard`: application tracker, stats hub, search, charts.
 - `codex/export-pipeline`: DOCX/PDF export, storage upload, PDF previews.
-- `codex/tauri-release`: desktop hardening, signing, updater, OS keychain.
+- `codex/tauri-release`: hosted desktop hardening, signing, updater, and production URL management.
 
 Push each branch after every coherent commit, open a draft PR early, and merge only after `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` pass.
 
@@ -49,8 +58,12 @@ Push each branch after every coherent commit, open a draft PR early, and merge o
 - `llm_key_vault_entries`: encrypted user provider keys, never plaintext.
 - `applications`: job/application tracker root entity.
 - `generation_runs`: JD analysis, prompt versions, generated JSON, match score, constraint warnings.
+- `generation_jobs`: queued/running/final status, BullMQ job IDs, progress, retries, safe errors, token/cost accounting, and result document IDs.
 - `documents`: generated resume/cover letter DOCX/PDF storage objects.
 - `application_events`: chronological tracker events for statuses and notes.
+- `provider_preferences`: user defaults for provider/model/key selection.
+- `scheduled_reminders`: delayed follow-ups and stale-application nudges.
+- `audit_events`: safe operational events without secrets.
 
 ## ATS Three-Step Engine
 

@@ -1,0 +1,52 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+  web:
+    build: .
+    env_file:
+      - .env.local
+    environment:
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      - redis
+
+  worker-generation:
+    build: .
+    command: ["npm", "run", "worker:generation"]
+    env_file:
+      - .env.local
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+
+  worker-documents:
+    build: .
+    command: ["npm", "run", "worker:documents"]
+    env_file:
+      - .env.local
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+
+  worker-scheduler:
+    build: .
+    command: ["npm", "run", "worker:scheduler"]
+    env_file:
+      - .env.local
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+
+volumes:
+  redis-data:

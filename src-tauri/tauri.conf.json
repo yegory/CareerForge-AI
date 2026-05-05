@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "ai.careerforge.app",
   "build": {
-    "frontendDist": "../out",
+    "frontendDist": "https://careerforge.ai",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build:tauri"
+    "beforeBuildCommand": ""
   },
   "app": {
     "windows": [

@@ -1,0 +1,29 @@
+import { NextResponse } from "next/server";
+import { getGenerationJob } from "@/lib/generation/jobs";
+import { createClient } from "@/lib/supabase/server";
+
+interface RouteContext {
+  params: Promise<{
+    id: string;
+  }>;
+}
+
+export async function GET(_request: Request, context: RouteContext) {
+  const { id } = await context.params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const job = await getGenerationJob({ supabase, userId: user.id, id });
+
+  if (!job) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ job });
+}

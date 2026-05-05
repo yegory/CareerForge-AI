@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { providerNameSchema, validateProviderKey } from "@/lib/llm/providers";
+import { providerValidationTotal } from "@/lib/metrics/registry";
+import { assertRateLimit, RateLimitError } from "@/lib/security/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 const validateProviderRequestSchema = z.object({
@@ -18,6 +20,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  try {
+    await assertRateLimit({
+      key: `rate:provider-validate:${user.id}`,
+      limit: 20,
+      windowSeconds: 60,
+    });
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 429 });
+    }
+
+    throw error;
+  }
+
   const body = validateProviderRequestSchema.safeParse(await request.json());
 
   if (!body.success) {
@@ -26,8 +42,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const ok = await validateProviderKey(body.data);
+    providerValidationTotal.inc({
+      provider: body.data.provider,
+      status: ok ? "ok" : "failed",
+    });
     return NextResponse.json({ ok });
   } catch (error) {
+    providerValidationTotal.inc({
+      provider: body.data.provider,
+      status: "failed",
+    });
     return NextResponse.json(
       {
         ok: false,
