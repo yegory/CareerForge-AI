@@ -132,6 +132,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   Sign in
                 </Button>
                 <Button
+                  type="submit"
                   formAction={signUpWithPassword}
                   variant="outline"
                   className="h-10 rounded-lg border-[#cfc7ba]"
