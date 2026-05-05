@@ -15,48 +15,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import { hasSupabasePublicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
+import { loadWorkspaceData } from "@/lib/workspace/data";
 import { signOut } from "../login/actions";
+import { createApplication } from "./actions";
 
 export const dynamic = "force-dynamic";
-
-const chartData = [
-  { label: "Mon", sent: 3, replies: 1, score: 78 },
-  { label: "Tue", sent: 4, replies: 1, score: 82 },
-  { label: "Wed", sent: 2, replies: 0, score: 80 },
-  { label: "Thu", sent: 6, replies: 2, score: 87 },
-  { label: "Fri", sent: 5, replies: 2, score: 91 },
-  { label: "Sat", sent: 1, replies: 0, score: 84 },
-  { label: "Sun", sent: 2, replies: 1, score: 88 },
-];
-
-const applications = [
-  {
-    company: "Northstar Health",
-    role: "Senior Full-Stack Engineer",
-    status: "Interviewing",
-    score: 91,
-    date: "May 3",
-    missed: ["FHIR"],
-  },
-  {
-    company: "LatticeWorks",
-    role: "Product Engineer, AI Tools",
-    status: "Applied",
-    score: 86,
-    date: "May 2",
-    missed: ["LangGraph", "SOC 2"],
-  },
-  {
-    company: "Harbor Grid",
-    role: "Frontend Platform Lead",
-    status: "Draft",
-    score: 74,
-    date: "May 1",
-    missed: ["Design systems"],
-  },
-];
 
 const navItems = [
   { label: "Dashboard", icon: BriefcaseBusiness },
@@ -65,7 +31,18 @@ const navItems = [
   { label: "ATS Guard", icon: ShieldCheck },
 ];
 
-export default async function AppPage() {
+interface AppPageProps {
+  searchParams: Promise<{
+    q?: string;
+    error?: string;
+    message?: string;
+  }>;
+}
+
+export default async function AppPage({ searchParams }: AppPageProps) {
+  const params = await searchParams;
+  const search = params.q ?? "";
+
   if (!hasSupabasePublicEnv()) {
     redirect("/login?error=Supabase%20environment%20variables%20are%20not%20configured.");
   }
@@ -78,6 +55,14 @@ export default async function AppPage() {
   if (!user) {
     redirect("/login?next=/app");
   }
+
+  const workspace = await loadWorkspaceData(supabase, user, search);
+  const stats = [
+    ["Sent", String(workspace.stats.sent), `${workspace.stats.applications} total`],
+    ["Replies", String(workspace.stats.replies), "interviews"],
+    ["Avg. ATS", `${workspace.stats.avgScore}%`, "latest runs"],
+    ["1-page safe", String(workspace.stats.onePageSafe), "verified"],
+  ];
 
   return (
     <main className="min-h-screen bg-[#f7f4ed] text-[#152023]">
@@ -119,22 +104,20 @@ export default async function AppPage() {
           <header className="flex flex-col gap-4 border-b border-[#d9d4c8] bg-white px-5 py-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm font-medium text-[#627174]">
-                {user.email ?? "Workspace"}
+                {workspace.profileName}
               </p>
               <h2 className="text-2xl font-semibold">Application command center</h2>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="relative">
+              <form action="/app" className="relative">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#627174]" />
                 <Input
+                  name="q"
+                  defaultValue={search}
                   className="h-10 w-full rounded-lg border-[#cfc7ba] bg-[#fbfaf6] pl-9 sm:w-72"
                   placeholder="Search applications"
                 />
-              </div>
-              <Button className="h-10 rounded-lg bg-[#d97043] px-4 text-white hover:bg-[#bd5d35]">
-                <Sparkles className="size-4" />
-                New draft
-              </Button>
+              </form>
               <form action={signOut}>
                 <Button
                   variant="outline"
@@ -148,13 +131,26 @@ export default async function AppPage() {
 
           <section className="grid gap-5 p-5 xl:grid-cols-[1fr_360px]">
             <div className="space-y-5">
+              {params.error ? (
+                <div className="rounded-lg border border-[#d97043] bg-[#fff7ed] p-3 text-sm text-[#8a421f]">
+                  {params.error}
+                </div>
+              ) : null}
+
+              {params.message ? (
+                <div className="rounded-lg border border-[#8bb8aa] bg-[#e6f2ef] p-3 text-sm text-[#17604f]">
+                  {params.message}
+                </div>
+              ) : null}
+
+              {workspace.error ? (
+                <div className="rounded-lg border border-[#d97043] bg-[#fff7ed] p-3 text-sm text-[#8a421f]">
+                  {workspace.error}
+                </div>
+              ) : null}
+
               <div className="grid gap-4 md:grid-cols-4">
-                {[
-                  ["Sent", "23", "+5"],
-                  ["Replies", "7", "+2"],
-                  ["Avg. ATS", "85%", "+4"],
-                  ["1-page safe", "18", "ok"],
-                ].map(([label, value, delta]) => (
+                {stats.map(([label, value, delta]) => (
                   <div key={label} className="rounded-lg border border-[#d9d4c8] bg-white p-4">
                     <p className="text-sm font-medium text-[#627174]">{label}</p>
                     <div className="mt-3 flex items-end justify-between">
@@ -167,7 +163,7 @@ export default async function AppPage() {
                 ))}
               </div>
 
-              <ApplicationsChart data={chartData} />
+              <ApplicationsChart data={workspace.chartData} />
 
               <div className="rounded-lg border border-[#d9d4c8] bg-white">
                 <div className="flex items-center justify-between border-b border-[#ebe5d9] px-4 py-3">
@@ -178,9 +174,15 @@ export default async function AppPage() {
                   </Button>
                 </div>
                 <div className="divide-y divide-[#ebe5d9]">
-                  {applications.map((application) => (
+                  {workspace.applications.length === 0 ? (
+                    <div className="px-4 py-8 text-sm text-[#627174]">
+                      No applications yet. Add a draft from the panel on the right.
+                    </div>
+                  ) : null}
+
+                  {workspace.applications.map((application) => (
                     <div
-                      key={`${application.company}-${application.role}`}
+                      key={application.id}
                       className="grid gap-4 px-4 py-4 md:grid-cols-[1fr_110px_90px]"
                     >
                       <div className="min-w-0">
@@ -194,15 +196,19 @@ export default async function AppPage() {
                           {application.company} · {application.date}
                         </p>
                         <p className="mt-2 text-sm text-[#8a5c33]">
-                          Missed: {application.missed.join(", ")}
+                          {application.missed.length > 0
+                            ? `Missed: ${application.missed.join(", ")}`
+                            : "No generation run yet"}
                         </p>
                       </div>
                       <div>
                         <div className="mb-2 flex items-center justify-between text-sm">
                           <span>ATS</span>
-                          <span className="font-semibold">{application.score}%</span>
+                          <span className="font-semibold">
+                            {application.score === null ? "n/a" : `${application.score}%`}
+                          </span>
                         </div>
-                        <Progress value={application.score} className="h-2 rounded-lg" />
+                        <Progress value={application.score ?? 0} className="h-2 rounded-lg" />
                       </div>
                       <Button variant="outline" className="h-9 rounded-lg border-[#cfc7ba]">
                         Open
@@ -216,9 +222,56 @@ export default async function AppPage() {
             <aside className="space-y-5">
               <div className="rounded-lg border border-[#d9d4c8] bg-white p-4">
                 <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">New application</h2>
+                  <Sparkles className="size-4 text-[#d97043]" />
+                </div>
+                <form action={createApplication} className="space-y-3">
+                  <Input
+                    name="company"
+                    className="h-10 rounded-lg border-[#cfc7ba]"
+                    placeholder="Company"
+                    required
+                  />
+                  <Input
+                    name="roleTitle"
+                    className="h-10 rounded-lg border-[#cfc7ba]"
+                    placeholder="Role title"
+                    required
+                  />
+                  <Input
+                    name="sourceUrl"
+                    className="h-10 rounded-lg border-[#cfc7ba]"
+                    placeholder="Job URL"
+                  />
+                  <select
+                    name="status"
+                    defaultValue="draft"
+                    className="h-10 w-full rounded-lg border border-[#cfc7ba] bg-white px-2.5 text-sm outline-none focus-visible:border-[#153f4a] focus-visible:ring-3 focus-visible:ring-[#153f4a]/20"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="applied">Applied</option>
+                    <option value="interviewing">Interviewing</option>
+                    <option value="offer">Offer</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                  <Textarea
+                    name="jobDescription"
+                    className="min-h-28 rounded-lg border-[#cfc7ba]"
+                    placeholder="Paste job description"
+                    required
+                  />
+                  <Button className="h-10 w-full rounded-lg bg-[#d97043] text-white hover:bg-[#bd5d35]">
+                    Create draft
+                  </Button>
+                </form>
+              </div>
+
+              <div className="rounded-lg border border-[#d9d4c8] bg-white p-4">
+                <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-lg font-semibold">Active generation</h2>
                   <Badge className="rounded-md bg-[#f4c95d] text-[#153f4a] hover:bg-[#f4c95d]">
-                    85%
+                    {workspace.stats.avgScore}%
                   </Badge>
                 </div>
                 <div className="space-y-4">
@@ -245,7 +298,13 @@ export default async function AppPage() {
               <div className="rounded-lg border border-[#d9d4c8] bg-white p-4">
                 <h2 className="text-lg font-semibold">Keyword coverage</h2>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {["React", "Node.js", "PostgreSQL", "Supabase", "Ownership"].map(
+                  {workspace.latestKeywords.hit.length === 0 &&
+                  workspace.latestKeywords.missed.length === 0 ? (
+                    <p className="text-sm text-[#627174]">
+                      Run generation to see keyword coverage.
+                    </p>
+                  ) : null}
+                  {workspace.latestKeywords.hit.map(
                     (keyword) => (
                       <Badge
                         key={keyword}
@@ -255,7 +314,7 @@ export default async function AppPage() {
                       </Badge>
                     ),
                   )}
-                  {["SOC 2", "FHIR"].map((keyword) => (
+                  {workspace.latestKeywords.missed.map((keyword) => (
                     <Badge
                       key={keyword}
                       variant="outline"
