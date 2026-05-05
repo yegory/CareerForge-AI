@@ -2,6 +2,11 @@
   "name": "careerforge-ai",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yegory/CareerForge-AI.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build:tauri": "TAURI_BUILD=true next build",

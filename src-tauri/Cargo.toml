@@ -3,8 +3,8 @@ name = "careerforge_ai"
 version = "0.1.0"
 description = "CareerForge AI desktop shell"
 authors = ["CareerForge AI"]
-license = "UNLICENSED"
-repository = ""
+license = "MIT"
+repository = "https://github.com/yegory/CareerForge-AI"
 edition = "2021"
 rust-version = "1.77.2"
 

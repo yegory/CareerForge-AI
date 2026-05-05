@@ -50,3 +50,7 @@ Next branches:
 ## First Core Files
 
 The ATS engine starts in `src/lib/ats/schemas.ts` because every provider response, UI form, database payload, and DOCX render depends on those contracts. The orchestration lives in `src/lib/ats/engine.ts`, and DOCX rendering lives in `src/lib/docx/render-template.ts`.
+
+## License
+
+MIT. See `LICENSE`.
