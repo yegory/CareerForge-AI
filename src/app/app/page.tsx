@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ApplicationsChart } from "@/components/dashboard/applications-chart";
 import { Badge } from "@/components/ui/badge";
@@ -25,10 +26,10 @@ import { createApplication } from "./actions";
 export const dynamic = "force-dynamic";
 
 const navItems = [
-  { label: "Dashboard", icon: BriefcaseBusiness },
-  { label: "Generator", icon: FileText },
-  { label: "Key Vault", icon: KeyRound },
-  { label: "ATS Guard", icon: ShieldCheck },
+  { label: "Dashboard", icon: BriefcaseBusiness, href: "/app" },
+  { label: "Generator", icon: FileText, href: "/app" },
+  { label: "Key Vault", icon: KeyRound, href: "/settings" },
+  { label: "ATS Guard", icon: ShieldCheck, href: "/app" },
 ];
 
 interface AppPageProps {
@@ -79,14 +80,15 @@ export default async function AppPage({ searchParams }: AppPageProps) {
           </div>
 
           <nav className="space-y-1 text-sm">
-            {navItems.map(({ label, icon: Icon }) => (
-              <button
+            {navItems.map(({ label, icon: Icon, href }) => (
+              <Link
                 key={label}
+                href={href}
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[#e9f4f2] hover:bg-white/10"
               >
                 <Icon className="size-4" />
                 {label}
-              </button>
+              </Link>
             ))}
           </nav>
 
